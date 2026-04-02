@@ -1,0 +1,39 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: bankops-backend
+
+  datasource:
+    url: jdbc:h2:mem:bankops;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: validate          # Flyway owns the schema; Hibernate only validates
+    show-sql: false
+    open-in-view: false           # Avoid lazy-load pitfalls in web layer
+
+  h2:
+    console:
+      enabled: true               # Accessible at /h2-console for local inspection
+      path: /h2-console
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+# CORS – frontend dev server
+bankops:
+  cors:
+    allowed-origins:
+      - "http://localhost:3000"
+
+logging:
+  level:
+    fi.cgi.bankops: DEBUG
+    org.springframework.web: INFO
