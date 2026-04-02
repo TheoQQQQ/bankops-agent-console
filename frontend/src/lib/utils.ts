@@ -30,7 +30,7 @@ export function riskBadgeBg(level: string): string {
     HIGH:     "bg-orange-900/50 text-orange-300 ring-orange-500/30",
     CRITICAL: "bg-red-900/50 text-red-300 ring-red-500/30",
   };
-  return map[level] ?? "bg-slate-800 text-slate-300";
+  return map[level as RiskLevel] ?? "bg-slate-800 text-slate-300";
 }
 
 /** Maps a case status to a badge colour. */
