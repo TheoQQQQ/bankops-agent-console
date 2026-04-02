@@ -202,4 +202,4 @@ The agent deliberately operates with low temperature to produce consistent, fact
 
 **TheoQQQQ** · [github.com/TheoQQQQ](https://github.com/TheoQQQQ)
 
-Built as a technical demonstration for CGI Future Talent Trainee programme (AI Engineering, Financial Sector).
+Built for Jukka and Tommi.
