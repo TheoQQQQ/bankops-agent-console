@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useCallback } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { CaseCard } from "@/components/ui/CaseCard";
 import { AiPanel } from "@/components/agent/AiPanel";
@@ -15,7 +16,8 @@ import {
   riskBadgeBg,
   statusBadgeBg,
 } from "@/lib/utils";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Clock } from "lucide-react";
+import type { CustomerCase } from "@/types";
 
 /**
  * Root page – three-column operator dashboard.
@@ -42,9 +44,74 @@ export default function DashboardPage() {
     submitDecision,
   } = useCases();
 
+  // ── Keyboard shortcuts ──────────────────────────────────────
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Ignore when focus is inside a textarea or input
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT") return;
+      if (!selectedCase) return;
+
+      const isActionable =
+        selectedCase.status === "PENDING" || selectedCase.status === "UNDER_REVIEW";
+      if (!isActionable) return;
+
+      if (e.key === "a" || e.key === "A") {
+        // Only fire if rationale is long enough — DecisionPanel validates internally
+        // We trigger via a custom event picked up by DecisionPanel
+        document.dispatchEvent(new CustomEvent("bankops:decision", { detail: "APPROVED" }));
+      } else if (e.key === "r" || e.key === "R") {
+        document.dispatchEvent(new CustomEvent("bankops:decision", { detail: "REJECTED" }));
+      } else if (e.key === "e" || e.key === "E") {
+        document.dispatchEvent(new CustomEvent("bankops:decision", { detail: "ESCALATED" }));
+      }
+    },
+    [selectedCase]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  // ── Case statistics ─────────────────────────────────────────
+  const stats = {
+    total:    cases.length,
+    critical: cases.filter((c) => c.riskLevel === "CRITICAL").length,
+    high:     cases.filter((c) => c.riskLevel === "HIGH").length,
+    pending:  cases.filter((c) => c.status === "PENDING").length,
+  };
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <Navbar />
+
+      {/* ── Stats bar ──────────────────────────────────────────── */}
+      <div className="flex items-center gap-6 border-b border-border bg-panel/50 px-6 py-2.5">
+        <StatPill
+          label="Active cases"
+          value={stats.total}
+          colour="text-slate-300"
+        />
+        <StatPill
+          label="Pending"
+          value={stats.pending}
+          colour="text-amber-300"
+          icon={<Clock className="h-3.5 w-3.5" />}
+        />
+        <StatPill
+          label="High risk"
+          value={stats.high}
+          colour="text-orange-300"
+          icon={<ShieldAlert className="h-3.5 w-3.5" />}
+        />
+        <StatPill
+          label="Critical"
+          value={stats.critical}
+          colour="text-red-400"
+          icon={<AlertTriangle className="h-3.5 w-3.5" />}
+        />
+      </div>
 
       <main className="flex min-h-0 flex-1 gap-0">
         {/* ── Column 1: Case list ──────────────────────────────── */}
@@ -54,11 +121,6 @@ export default function DashboardPage() {
               Active Cases
             </h1>
             {isLoadingCases && <Spinner size="sm" className="text-slate-500" />}
-            {!isLoadingCases && (
-              <span className="rounded-full bg-brand-900/60 px-2 py-0.5 text-xs font-medium text-brand-300">
-                {cases.length}
-              </span>
-            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-3">
@@ -163,13 +225,34 @@ export default function DashboardPage() {
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             {!selectedCase ? (
-              <p className="text-sm text-slate-500">Select a case to view its audit trail.</p>
+              <p className="text-sm text-slate-500">
+                Select a case to view its audit trail.
+              </p>
             ) : (
               <AuditTimeline entries={auditEntries} />
             )}
           </div>
         </aside>
       </main>
+    </div>
+  );
+}
+
+// ── Small helper component ────────────────────────────────────
+
+interface StatPillProps {
+  label: string;
+  value: number;
+  colour: string;
+  icon?: React.ReactNode;
+}
+
+function StatPill({ label, value, colour, icon }: StatPillProps) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {icon && <span className={colour}>{icon}</span>}
+      <span className={`text-sm font-bold ${colour}`}>{value}</span>
+      <span className="text-xs text-slate-500">{label}</span>
     </div>
   );
 }

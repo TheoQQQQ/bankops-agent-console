@@ -130,6 +130,8 @@ export function useCases() {
         decision,
         operator: "demo.operator",
         rationale,
+        // Pass AI recommendation so backend can detect overrides
+        aiRecommendation: analysis?.recommendation ?? undefined,
       };
 
       const updated = await postDecision(selectedCase.id, body);

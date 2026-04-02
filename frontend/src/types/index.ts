@@ -53,6 +53,8 @@ export interface DecisionRequest {
   decision: "APPROVED" | "REJECTED" | "ESCALATED";
   operator: string;
   rationale: string;
+  /** AI recommendation at time of decision — used for override detection. */
+  aiRecommendation?: string;
 }
 
 // ============================================================

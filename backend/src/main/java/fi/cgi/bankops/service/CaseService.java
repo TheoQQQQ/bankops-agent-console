@@ -13,26 +13,33 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Core business logic for case lifecycle management.
- *
- * <p>All write operations are wrapped in a transaction; the {@link AuditService}
- * uses {@code REQUIRES_NEW} so its writes survive any rollback here.</p>
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class CaseService {
 
-    /** Only these statuses may receive a new decision. */
     private static final Set<CaseStatus> ACTIONABLE_STATUSES =
             Set.of(CaseStatus.PENDING, CaseStatus.UNDER_REVIEW);
 
-    /** Only terminal statuses are accepted as decisions. */
     private static final Set<CaseStatus> TERMINAL_STATUSES =
             Set.of(CaseStatus.APPROVED, CaseStatus.REJECTED, CaseStatus.ESCALATED);
+
+    /**
+     * Maps an AI recommendation string to the CaseStatus it implies.
+     * Used for override detection.
+     */
+    private static final Map<String, CaseStatus> AI_REC_TO_STATUS = Map.of(
+            "APPROVE",         CaseStatus.APPROVED,
+            "REJECT",          CaseStatus.REJECTED,
+            "ESCALATE",        CaseStatus.ESCALATED
+            // NEEDS_MORE_INFO has no direct mapping – never triggers override
+    );
 
     private final CustomerCaseRepository caseRepository;
     private final AuditLogRepository auditLogRepository;
@@ -58,7 +65,6 @@ public class CaseService {
 
     @Transactional(readOnly = true)
     public List<AuditLogDto> getAuditLog(Long caseId) {
-        // Verify case exists before returning its audit trail
         findOrThrow(caseId);
         return auditLogRepository.findByCaseIdOrderByCreatedAtAsc(caseId)
                 .stream()
@@ -70,9 +76,6 @@ public class CaseService {
     // Commands
     // -------------------------------------------------------------------------
 
-    /**
-     * Marks a case as being reviewed and records the AI's analysis.
-     */
     @Transactional
     public CustomerCaseDto recordAiAnalysis(Long caseId, AiAnalysisRequest request) {
         var cs = findOrThrow(caseId);
@@ -81,8 +84,7 @@ public class CaseService {
             cs.setStatus(CaseStatus.UNDER_REVIEW);
         }
 
-        String detail = buildAiDetail(request);
-        auditService.record(caseId, "AI_AGENT", "AI_ANALYSED", detail);
+        auditService.record(caseId, "AI_AGENT", "AI_ANALYSED", buildAiDetail(request));
 
         log.info("AI analysis recorded for case {} (confidence={}%)",
                 cs.getCaseRef(), request.confidencePercent());
@@ -93,8 +95,10 @@ public class CaseService {
     /**
      * Applies an operator decision to a case.
      *
-     * @throws InvalidStateTransitionException if the case is not in an actionable state
-     *         or the requested status is not a terminal decision.
+     * <p>If the operator's decision contradicts the AI recommendation,
+     * an additional {@code DECISION_OVERRIDE} audit entry is written.
+     * This satisfies EBA/EU AI Act requirements for human-override logging
+     * in automated decision-support systems.</p>
      */
     @Transactional
     public CustomerCaseDto applyDecision(Long caseId, DecisionRequest request) {
@@ -104,9 +108,17 @@ public class CaseService {
 
         cs.setStatus(request.decision());
 
-        String actor = "OPERATOR:" + request.operator();
+        String actor  = "OPERATOR:" + request.operator();
         String detail = request.decision() + " – " + request.rationale();
         auditService.record(caseId, actor, request.decision().name(), detail);
+
+        // Override detection
+        if (isOverride(request)) {
+            String overrideDetail = buildOverrideDetail(request);
+            auditService.record(caseId, actor, "DECISION_OVERRIDE", overrideDetail);
+            log.warn("Override detected on case {}: AI recommended {} but operator chose {}",
+                    cs.getCaseRef(), request.aiRecommendation(), request.decision());
+        }
 
         log.info("Decision {} applied to case {} by {}",
                 request.decision(), cs.getCaseRef(), request.operator());
@@ -134,6 +146,29 @@ public class CaseService {
                     "Status %s is not a valid decision. Allowed: %s"
                             .formatted(newStatus, TERMINAL_STATUSES));
         }
+    }
+
+    /**
+     * An override occurs when:
+     * - an AI recommendation was provided, AND
+     * - it maps to a concrete status, AND
+     * - that status differs from the operator's decision.
+     */
+    private static boolean isOverride(DecisionRequest request) {
+        if (request.aiRecommendation() == null || request.aiRecommendation().isBlank()) {
+            return false;
+        }
+        CaseStatus impliedStatus = AI_REC_TO_STATUS.get(request.aiRecommendation());
+        return impliedStatus != null && impliedStatus != request.decision();
+    }
+
+    private static String buildOverrideDetail(DecisionRequest request) {
+        return ("AI recommended %s but operator chose %s. Operator rationale: %s")
+                .formatted(
+                        request.aiRecommendation(),
+                        request.decision(),
+                        request.rationale()
+                );
     }
 
     private static String buildAiDetail(AiAnalysisRequest r) {
