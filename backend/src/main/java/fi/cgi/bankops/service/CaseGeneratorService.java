@@ -10,8 +10,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Persists AI-generated cases sent from the Next.js generate-cases route.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -33,20 +37,40 @@ public class CaseGeneratorService {
     }
 
     private CustomerCase toEntity(CasePayload p) {
+        CaseType caseType;
+        try {
+            caseType = CaseType.valueOf(p.caseType());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Invalid caseType '%s'. Allowed: %s"
+                            .formatted(p.caseType(), Arrays.toString(CaseType.values())));
+        }
+
+        RiskLevel riskLevel;
+        try {
+            riskLevel = RiskLevel.valueOf(p.riskLevel());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Invalid riskLevel '%s'. Allowed: %s"
+                            .formatted(p.riskLevel(), Arrays.toString(RiskLevel.values())));
+        }
+
         BigDecimal amount = null;
         if (p.amount() != null && !p.amount().isBlank()) {
             try {
                 amount = new BigDecimal(p.amount().replaceAll("[^\\d.]", ""));
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+                // leave null if unparseable
+            }
         }
 
         return CustomerCase.builder()
                 .caseRef(p.caseRef())
                 .customerId(p.customerId())
                 .customerName(p.customerName())
-                .caseType(CaseType.valueOf(p.caseType()))
+                .caseType(caseType)
                 .status(CaseStatus.PENDING)
-                .riskLevel(RiskLevel.valueOf(p.riskLevel()))
+                .riskLevel(riskLevel)
                 .amount(amount)
                 .description(p.description())
                 .build();

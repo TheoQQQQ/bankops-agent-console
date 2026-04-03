@@ -17,11 +17,11 @@ import { Spinner } from "@/components/ui/Spinner";
 export default function LoginPage() {
   const router = useRouter();
 
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername]       = useState("");
+  const [password, setPassword]       = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError]   = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [loading, setLoading]         = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -40,6 +40,9 @@ export default function LoginPage() {
         setError(body.error ?? "Login failed. Please check your credentials.");
         return;
       }
+
+      const data = await res.json() as { username?: string };
+      if (data.username) localStorage.setItem("bankops_user", data.username);
 
       // JWT is now stored in an HttpOnly cookie by the server.
       // Redirect to dashboard.

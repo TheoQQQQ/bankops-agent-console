@@ -1,9 +1,17 @@
+/**
+ * POST /api/generate-cases
+ *
+ * Calls Groq to generate a batch of realistic banking cases, then
+ * forwards them to the Java backend to be persisted as PENDING cases.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 import { cookies } from "next/headers";
 
-const CASE_TYPES  = ["FRAUD_ALERT", "KYC_REVIEW", "CREDIT_LIMIT", "AML_FLAG"];
-const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+const BACKEND      = process.env.BACKEND_URL ?? "http://localhost:8080";
+const CASE_TYPES   = ["FRAUD_ALERT", "KYC_REVIEW", "CREDIT_LIMIT", "AML_FLAG"];
+const RISK_LEVELS  = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const SYSTEM_PROMPT = `You are a senior financial crime compliance officer at a European bank.
 Generate realistic, varied customer case records that would be flagged for human review.
@@ -26,7 +34,7 @@ Respond ONLY with a valid JSON object:
       "caseRef": "CASE-XXXX",
       "customerId": "CUST-XXXXX",
       "customerName": "Full Name",
-      "caseType": "AML_ALERT",
+      "caseType": "AML_FLAG",
       "riskLevel": "HIGH",
       "amount": "47500.00",
       "description": "Detailed description of the flagged activity..."
@@ -41,12 +49,14 @@ function getGroqClient(): Groq {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // Parse requested count (default 5)
   let count = 5;
   try {
     const body = await req.json() as { count?: number };
     if (body.count && body.count >= 1 && body.count <= 10) count = body.count;
   } catch { /* use default */ }
 
+  // 1. Call Groq to generate cases
   let generatedCases: object[];
   try {
     const groq = getGroqClient();
@@ -69,9 +79,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     generatedCases = parsed.cases;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error("[generate-cases] Groq error:", message);
     return NextResponse.json({ error: `AI generation failed: ${message}` }, { status: 502 });
   }
 
+  // 2. Forward to Java backend
   const cookieStore = await cookies();
   const token = cookieStore.get("bankops_token")?.value;
   if (!token) {
@@ -79,7 +91,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const backendRes = await fetch("http://localhost:8080/api/v1/cases/generate", {
+    const backendRes = await fetch(`${BACKEND}/api/v1/cases/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -97,6 +109,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ cases: savedCases, count: savedCases.length });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error("[generate-cases] Backend error:", message);
     return NextResponse.json({ error: `Failed to save cases: ${message}` }, { status: 502 });
   }
 }

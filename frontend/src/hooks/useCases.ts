@@ -123,7 +123,7 @@ export function useCases() {
 
       const body: DecisionRequest = {
         decision,
-        operator: "demo.operator",
+        operator: localStorage.getItem("bankops_user") ?? "demo.operator",
         rationale,
         aiRecommendation: analysis?.recommendation ?? undefined,
       };
