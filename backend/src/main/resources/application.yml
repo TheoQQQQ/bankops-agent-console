@@ -1,5 +1,11 @@
 server:
   port: 8080
+  # HTTPS: on Railway, TLS is terminated at the load balancer.
+  # For local HTTPS, generate a keystore and uncomment:
+  # ssl:
+  #   key-store: classpath:keystore.p12
+  #   key-store-password: ${SSL_KEYSTORE_PASSWORD}
+  #   key-store-type: PKCS12
 
 spring:
   application:
@@ -14,26 +20,32 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: validate          # Flyway owns the schema; Hibernate only validates
+      ddl-auto: validate
     show-sql: false
-    open-in-view: false           # Avoid lazy-load pitfalls in web layer
+    open-in-view: false
 
   h2:
     console:
-      enabled: true               # Accessible at /h2-console for local inspection
+      enabled: true
       path: /h2-console
 
   flyway:
     enabled: true
     locations: classpath:db/migration
 
-# CORS – frontend dev server
 bankops:
   cors:
     allowed-origins:
       - "http://localhost:3000"
 
+  jwt:
+    # In production, inject via environment variable: BANKOPS_JWT_SECRET
+    # Must be at least 256 bits (32 chars) for HS256.
+    secret: ${BANKOPS_JWT_SECRET:bankops-dev-secret-change-in-production-min32}
+    expiry-minutes: 480   # 8-hour session
+
 logging:
   level:
     fi.cgi.bankops: DEBUG
+    org.springframework.security: INFO
     org.springframework.web: INFO

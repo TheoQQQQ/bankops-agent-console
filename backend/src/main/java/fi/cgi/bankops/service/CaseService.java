@@ -9,6 +9,8 @@ import fi.cgi.bankops.repository.AuditLogRepository;
 import fi.cgi.bankops.repository.CustomerCaseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,30 +34,28 @@ public class CaseService {
 
     /**
      * Maps an AI recommendation string to the CaseStatus it implies.
-     * Used for override detection.
+     * Used for regulatory override detection.
      */
     private static final Map<String, CaseStatus> AI_REC_TO_STATUS = Map.of(
-            "APPROVE",         CaseStatus.APPROVED,
-            "REJECT",          CaseStatus.REJECTED,
-            "ESCALATE",        CaseStatus.ESCALATED
-            // NEEDS_MORE_INFO has no direct mapping – never triggers override
+            "APPROVE",  CaseStatus.APPROVED,
+            "REJECT",   CaseStatus.REJECTED,
+            "ESCALATE", CaseStatus.ESCALATED
     );
 
     private final CustomerCaseRepository caseRepository;
-    private final AuditLogRepository auditLogRepository;
-    private final AuditService auditService;
-    private final CaseMapper caseMapper;
+    private final AuditLogRepository     auditLogRepository;
+    private final AuditService           auditService;
+    private final CaseMapper             caseMapper;
 
     // -------------------------------------------------------------------------
     // Queries
     // -------------------------------------------------------------------------
 
     @Transactional(readOnly = true)
-    public List<CustomerCaseDto> getActiveCases() {
-        return caseRepository.findActiveCasesOrderedByPriority()
-                .stream()
-                .map(caseMapper::toDto)
-                .toList();
+    public Page<CustomerCaseDto> getActiveCases(Pageable pageable) {
+        return caseRepository
+                .findActiveCasesPaginated(CaseStatus.PENDING, CaseStatus.UNDER_REVIEW, pageable)
+                .map(caseMapper::toDto);
     }
 
     @Transactional(readOnly = true)
@@ -93,34 +93,31 @@ public class CaseService {
     }
 
     /**
-     * Applies an operator decision to a case.
+     * Applies an operator decision.
      *
-     * <p>If the operator's decision contradicts the AI recommendation,
-     * an additional {@code DECISION_OVERRIDE} audit entry is written.
-     * This satisfies EBA/EU AI Act requirements for human-override logging
-     * in automated decision-support systems.</p>
+     * <p>If the decision contradicts the AI recommendation, a
+     * {@code DECISION_OVERRIDE} entry is appended to the audit log —
+     * a requirement under EBA AI governance guidelines.</p>
      */
     @Transactional
     public CustomerCaseDto applyDecision(Long caseId, DecisionRequest request) {
         var cs = findOrThrow(caseId);
 
         validateTransition(cs, request.decision());
-
         cs.setStatus(request.decision());
 
-        String actor  = "OPERATOR:" + request.operator();
-        String detail = request.decision() + " – " + request.rationale();
+        String actor  = "OPERATOR:" + sanitise(request.operator());
+        String detail = request.decision() + " – " + sanitise(request.rationale());
         auditService.record(caseId, actor, request.decision().name(), detail);
 
-        // Override detection
         if (isOverride(request)) {
             String overrideDetail = buildOverrideDetail(request);
             auditService.record(caseId, actor, "DECISION_OVERRIDE", overrideDetail);
-            log.warn("Override detected on case {}: AI recommended {} but operator chose {}",
+            log.warn("Override on case {}: AI={} Operator={}",
                     cs.getCaseRef(), request.aiRecommendation(), request.decision());
         }
 
-        log.info("Decision {} applied to case {} by {}",
+        log.info("Decision {} on case {} by {}",
                 request.decision(), cs.getCaseRef(), request.operator());
 
         return caseMapper.toDto(caseRepository.save(cs));
@@ -148,27 +145,33 @@ public class CaseService {
         }
     }
 
-    /**
-     * An override occurs when:
-     * - an AI recommendation was provided, AND
-     * - it maps to a concrete status, AND
-     * - that status differs from the operator's decision.
-     */
     private static boolean isOverride(DecisionRequest request) {
         if (request.aiRecommendation() == null || request.aiRecommendation().isBlank()) {
             return false;
         }
-        CaseStatus impliedStatus = AI_REC_TO_STATUS.get(request.aiRecommendation());
-        return impliedStatus != null && impliedStatus != request.decision();
+        CaseStatus implied = AI_REC_TO_STATUS.get(request.aiRecommendation());
+        return implied != null && implied != request.decision();
     }
 
-    private static String buildOverrideDetail(DecisionRequest request) {
-        return ("AI recommended %s but operator chose %s. Operator rationale: %s")
-                .formatted(
-                        request.aiRecommendation(),
-                        request.decision(),
-                        request.rationale()
-                );
+    /**
+     * Strips HTML tags and control characters from free-text input
+     * before it is written to the audit log.
+     *
+     * <p>This is a defence-in-depth measure. The primary XSS defence is
+     * output encoding on the frontend; this ensures stored values are
+     * clean at the persistence layer too.</p>
+     */
+    private static String sanitise(String input) {
+        if (input == null) return null;
+        // Remove HTML tags
+        String stripped = input.replaceAll("<[^>]*>", "");
+        // Remove control characters except tab/newline/CR
+        return stripped.replaceAll("[\\p{Cntrl}&&[^\t\n\r]]", "");
+    }
+
+    private static String buildOverrideDetail(DecisionRequest r) {
+        return "AI recommended %s but operator chose %s. Rationale: %s"
+                .formatted(r.aiRecommendation(), r.decision(), sanitise(r.rationale()));
     }
 
     private static String buildAiDetail(AiAnalysisRequest r) {

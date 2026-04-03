@@ -4,19 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getActiveCases, getAuditLog, postDecision } from "@/lib/api";
 import type { AgentStatus, AiAnalysis, AuditEntry, CustomerCase, DecisionRequest } from "@/types";
 
-const POLL_INTERVAL_MS = 30_000; // Refresh case list every 30 seconds
+const POLL_INTERVAL_MS = 30_000;
 
 /**
  * Central state hook for the BankOps console.
  *
- * Responsibilities:
- * - Loads and periodically refreshes the active case list
- * - Manages the selected case and its audit trail
- * - Orchestrates the AI analysis flow
- * - Submits operator decisions
+ * Manages active cases (with pagination + polling), selected case,
+ * audit trail, AI analysis flow, and operator decision submission.
  */
 export function useCases() {
-  const [cases, setCases]           = useState<CustomerCase[]>([]);
+  const [cases, setCases]               = useState<CustomerCase[]>([]);
+  const [totalCases, setTotalCases]     = useState(0);
+  const [currentPage, setCurrentPage]   = useState(0);
   const [selectedCase, setSelectedCase] = useState<CustomerCase | null>(null);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [agentStatus, setAgentStatus]   = useState<AgentStatus>("idle");
@@ -28,19 +27,20 @@ export function useCases() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ----------------------------------------------------------------
-  // Load active cases (with polling)
+  // Load cases (paginated, with polling)
   // ----------------------------------------------------------------
 
-  const loadCases = useCallback(async () => {
+  const loadCases = useCallback(async (page = 0) => {
     try {
-      const data = await getActiveCases();
-      setCases(data);
+      const data = await getActiveCases(page, 20);
+      setCases(data.content);
+      setTotalCases(data.totalElements);
+      setCurrentPage(data.number);
       setCasesError(null);
 
-      // Keep the selected case in sync if it was updated server-side
       setSelectedCase((prev) => {
         if (!prev) return prev;
-        return data.find((c) => c.id === prev.id) ?? prev;
+        return data.content.find((c) => c.id === prev.id) ?? prev;
       });
     } catch (err) {
       setCasesError(err instanceof Error ? err.message : "Failed to load cases");
@@ -50,15 +50,16 @@ export function useCases() {
   }, []);
 
   useEffect(() => {
-    void loadCases();
-    pollRef.current = setInterval(() => void loadCases(), POLL_INTERVAL_MS);
+    void loadCases(0);
+    pollRef.current = setInterval(() => void loadCases(currentPage), POLL_INTERVAL_MS);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadCases]);
 
   // ----------------------------------------------------------------
-  // Select a case – also loads its audit trail
+  // Select a case
   // ----------------------------------------------------------------
 
   const selectCase = useCallback(async (c: CustomerCase) => {
@@ -91,6 +92,7 @@ export function useCases() {
       const res = await fetch("/api/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(selectedCase),
       });
 
@@ -103,17 +105,15 @@ export function useCases() {
       setAnalysis(result);
       setAgentStatus("done");
 
-      // Refresh audit trail to include the AI_ANALYSED entry
       const trail = await getAuditLog(selectedCase.id);
       setAuditEntries(trail);
 
-      // Refresh case list (status may have changed to UNDER_REVIEW)
-      void loadCases();
+      void loadCases(currentPage);
     } catch (err) {
       setAgentError(err instanceof Error ? err.message : "Unknown error");
       setAgentStatus("error");
     }
-  }, [selectedCase, loadCases]);
+  }, [selectedCase, loadCases, currentPage]);
 
   // ----------------------------------------------------------------
   // Operator decision
@@ -130,25 +130,25 @@ export function useCases() {
         decision,
         operator: "demo.operator",
         rationale,
-        // Pass AI recommendation so backend can detect overrides
         aiRecommendation: analysis?.recommendation ?? undefined,
       };
 
       const updated = await postDecision(selectedCase.id, body);
       setSelectedCase(updated);
 
-      // Refresh
       const [trail] = await Promise.all([
         getAuditLog(selectedCase.id),
-        loadCases(),
+        loadCases(currentPage),
       ]);
       setAuditEntries(trail);
     },
-    [selectedCase, loadCases]
+    [selectedCase, analysis, loadCases, currentPage]
   );
 
   return {
     cases,
+    totalCases,
+    currentPage,
     selectedCase,
     auditEntries,
     agentStatus,
@@ -159,5 +159,6 @@ export function useCases() {
     selectCase,
     runAnalysis,
     submitDecision,
+    loadPage: loadCases,
   };
 }

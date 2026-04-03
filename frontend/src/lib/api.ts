@@ -1,8 +1,10 @@
 /**
  * Typed API client for the BankOps Java backend.
  *
- * All requests go through Next.js rewrites (/api/backend/*) so the
- * browser never talks directly to the Java service.
+ * All requests go through Next.js rewrites (/api/backend/*).
+ * The JWT is stored in an HttpOnly cookie, so it is forwarded
+ * automatically by the browser on every same-origin request —
+ * no manual Authorization header needed from client components.
  */
 
 import type {
@@ -20,24 +22,28 @@ async function request<T>(
 ): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
+    // Include cookies so the Next.js rewrite can forward the JWT
+    credentials: "include",
     ...options,
   });
 
   if (!res.ok) {
-    // Attempt to parse RFC 7807 Problem Detail
+    if (res.status === 401 || res.status === 403) {
+      // Token expired or missing — redirect to login
+      window.location.href = "/login";
+      throw new Error("Session expired");
+    }
     let message = `HTTP ${res.status}`;
     try {
       const body = await res.json() as { detail?: string };
       message = body.detail ?? message;
     } catch {
-      // non-JSON error body – keep the status code message
+      // non-JSON error body
     }
     throw new Error(message);
   }
 
-  // 204 No Content
   if (res.status === 204) return undefined as T;
-
   return res.json() as Promise<T>;
 }
 
@@ -45,8 +51,21 @@ async function request<T>(
 // Cases
 // ----------------------------------------------------------------
 
-export const getActiveCases = (): Promise<CustomerCase[]> =>
-  request<CustomerCase[]>("/cases/active");
+export interface PagedResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export const getActiveCases = (
+  page = 0,
+  size = 20
+): Promise<PagedResponse<CustomerCase>> =>
+  request<PagedResponse<CustomerCase>>(
+    `/cases/active?page=${page}&size=${size}`
+  );
 
 export const getCase = (id: number): Promise<CustomerCase> =>
   request<CustomerCase>(`/cases/${id}`);

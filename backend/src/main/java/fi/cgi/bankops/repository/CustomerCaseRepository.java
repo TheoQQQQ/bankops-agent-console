@@ -2,6 +2,8 @@ package fi.cgi.bankops.repository;
 
 import fi.cgi.bankops.model.CaseStatus;
 import fi.cgi.bankops.model.CustomerCase;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,11 +20,10 @@ public interface CustomerCaseRepository extends JpaRepository<CustomerCase, Long
     List<CustomerCase> findByStatusOrderByCreatedAtAsc(CaseStatus status);
 
     /**
-     * Returns all cases that still require operator attention,
-     * ordered so that the most critical and oldest appear first.
+     * Returns a paginated list of active cases ordered by risk priority then age.
      *
-     * <p>Uses typed enum parameters via :pending / :underReview to avoid
-     * string-literal comparisons that break if enum names are refactored.</p>
+     * <p>Uses named parameters with typed enum values to prevent any
+     * possibility of JPQL injection — Hibernate parameterises these safely.</p>
      */
     @Query("""
             SELECT c FROM CustomerCase c
@@ -36,13 +37,18 @@ public interface CustomerCaseRepository extends JpaRepository<CustomerCase, Long
                 END ASC,
                 c.createdAt ASC
             """)
-    List<CustomerCase> findActiveCasesOrderedByPriority(
-            @Param("pending")      CaseStatus pending,
-            @Param("underReview")  CaseStatus underReview
+    Page<CustomerCase> findActiveCasesPaginated(
+            @Param("pending")     CaseStatus pending,
+            @Param("underReview") CaseStatus underReview,
+            Pageable pageable
     );
 
-    /** Convenience overload with defaults. */
+    /** Convenience default for non-paginated internal use (e.g. stats). */
     default List<CustomerCase> findActiveCasesOrderedByPriority() {
-        return findActiveCasesOrderedByPriority(CaseStatus.PENDING, CaseStatus.UNDER_REVIEW);
+        return findActiveCasesPaginated(
+                CaseStatus.PENDING,
+                CaseStatus.UNDER_REVIEW,
+                Pageable.unpaged()
+        ).getContent();
     }
 }
