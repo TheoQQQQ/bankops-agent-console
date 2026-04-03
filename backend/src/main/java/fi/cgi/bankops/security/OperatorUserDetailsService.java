@@ -4,7 +4,6 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -34,12 +33,6 @@ public class OperatorUserDetailsService implements UserDetailsService {
             "demo.operator",  "$2a$12$7Xt7FvMxqV6R5jQlVU5lGO3n9w8LBvCHAzOwRECWF1z.e7Yh3ZZRe",
             "senior.analyst", "$2a$12$mHKgA8L6lLWVEY7E3RN2E.Qkpas8rFDThZq7cSKOEW8A9Gv4KWbJ2"
     );
-
-    private final PasswordEncoder passwordEncoder;
-
-    public OperatorUserDetailsService(PasswordEncoder passwordEncoder) {
-        this.passwordEncoder = passwordEncoder;
-    }
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {

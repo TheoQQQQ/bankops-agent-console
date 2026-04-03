@@ -7,6 +7,7 @@ import fi.cgi.bankops.exception.InvalidStateTransitionException;
 import fi.cgi.bankops.model.*;
 import fi.cgi.bankops.repository.AuditLogRepository;
 import fi.cgi.bankops.repository.CustomerCaseRepository;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -18,9 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Core business logic for case lifecycle management.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -32,10 +30,6 @@ public class CaseService {
     private static final Set<CaseStatus> TERMINAL_STATUSES =
             Set.of(CaseStatus.APPROVED, CaseStatus.REJECTED, CaseStatus.ESCALATED);
 
-    /**
-     * Maps an AI recommendation string to the CaseStatus it implies.
-     * Used for regulatory override detection.
-     */
     private static final Map<String, CaseStatus> AI_REC_TO_STATUS = Map.of(
             "APPROVE",  CaseStatus.APPROVED,
             "REJECT",   CaseStatus.REJECTED,
@@ -47,10 +41,6 @@ public class CaseService {
     private final AuditService           auditService;
     private final CaseMapper             caseMapper;
 
-    // -------------------------------------------------------------------------
-    // Queries
-    // -------------------------------------------------------------------------
-
     @Transactional(readOnly = true)
     public Page<CustomerCaseDto> getActiveCases(Pageable pageable) {
         return caseRepository
@@ -59,12 +49,12 @@ public class CaseService {
     }
 
     @Transactional(readOnly = true)
-    public CustomerCaseDto getCaseById(Long id) {
+    public CustomerCaseDto getCaseById(@NonNull Long id) {
         return caseMapper.toDto(findOrThrow(id));
     }
 
     @Transactional(readOnly = true)
-    public List<AuditLogDto> getAuditLog(Long caseId) {
+    public List<AuditLogDto> getAuditLog(@NonNull Long caseId) {
         findOrThrow(caseId);
         return auditLogRepository.findByCaseIdOrderByCreatedAtAsc(caseId)
                 .stream()
@@ -72,12 +62,8 @@ public class CaseService {
                 .toList();
     }
 
-    // -------------------------------------------------------------------------
-    // Commands
-    // -------------------------------------------------------------------------
-
     @Transactional
-    public CustomerCaseDto recordAiAnalysis(Long caseId, AiAnalysisRequest request) {
+    public CustomerCaseDto recordAiAnalysis(@NonNull Long caseId, AiAnalysisRequest request) {
         var cs = findOrThrow(caseId);
 
         if (cs.getStatus() == CaseStatus.PENDING) {
@@ -92,15 +78,8 @@ public class CaseService {
         return caseMapper.toDto(caseRepository.save(cs));
     }
 
-    /**
-     * Applies an operator decision.
-     *
-     * <p>If the decision contradicts the AI recommendation, a
-     * {@code DECISION_OVERRIDE} entry is appended to the audit log —
-     * a requirement under EBA AI governance guidelines.</p>
-     */
     @Transactional
-    public CustomerCaseDto applyDecision(Long caseId, DecisionRequest request) {
+    public CustomerCaseDto applyDecision(@NonNull Long caseId, DecisionRequest request) {
         var cs = findOrThrow(caseId);
 
         validateTransition(cs, request.decision());
@@ -123,11 +102,7 @@ public class CaseService {
         return caseMapper.toDto(caseRepository.save(cs));
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
-    private CustomerCase findOrThrow(Long id) {
+    private CustomerCase findOrThrow(@NonNull Long id) {
         return caseRepository.findById(id)
                 .orElseThrow(() -> new CaseNotFoundException(id));
     }
@@ -153,19 +128,9 @@ public class CaseService {
         return implied != null && implied != request.decision();
     }
 
-    /**
-     * Strips HTML tags and control characters from free-text input
-     * before it is written to the audit log.
-     *
-     * <p>This is a defence-in-depth measure. The primary XSS defence is
-     * output encoding on the frontend; this ensures stored values are
-     * clean at the persistence layer too.</p>
-     */
     private static String sanitise(String input) {
         if (input == null) return null;
-        // Remove HTML tags
         String stripped = input.replaceAll("<[^>]*>", "");
-        // Remove control characters except tab/newline/CR
         return stripped.replaceAll("[\\p{Cntrl}&&[^\t\n\r]]", "");
     }
 

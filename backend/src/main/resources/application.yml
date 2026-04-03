@@ -38,11 +38,9 @@ bankops:
     allowed-origins:
       - "http://localhost:3000"
 
-  jwt:
-    # In production, inject via environment variable: BANKOPS_JWT_SECRET
-    # Must be at least 256 bits (32 chars) for HS256.
-    secret: ${BANKOPS_JWT_SECRET:bankops-dev-secret-change-in-production-min32}
-    expiry-minutes: 480   # 8-hour session
+jwt:
+  secret: ${BANKOPS_JWT_SECRET:bankops-dev-secret-change-in-production-min32}
+  "[expiry-minutes]": 480
 
 logging:
   level:
