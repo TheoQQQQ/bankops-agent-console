@@ -16,19 +16,9 @@ import {
   riskBadgeBg,
   statusBadgeBg,
 } from "@/lib/utils";
-import { AlertTriangle, ShieldAlert, Clock } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Clock, Sparkles } from "lucide-react";
 import type { CustomerCase } from "@/types";
 
-/**
- * Root page – three-column operator dashboard.
- *
- * Layout:
- * ┌─────────────────────────────────────────────────────────────┐
- * │  Navbar                                                     │
- * ├──────────────┬──────────────────────────┬───────────────────┤
- * │  Case list   │  Case detail + AI panel  │  Audit timeline   │
- * └──────────────┴──────────────────────────┴───────────────────┘
- */
 export default function DashboardPage() {
   const {
     cases,
@@ -39,15 +29,16 @@ export default function DashboardPage() {
     agentError,
     isLoadingCases,
     casesError,
+    isGenerating,
     selectCase,
     runAnalysis,
     submitDecision,
+    generateCases,
   } = useCases();
 
   // ── Keyboard shortcuts ──────────────────────────────────────
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Ignore when focus is inside a textarea or input
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "TEXTAREA" || tag === "INPUT") return;
       if (!selectedCase) return;
@@ -57,8 +48,6 @@ export default function DashboardPage() {
       if (!isActionable) return;
 
       if (e.key === "a" || e.key === "A") {
-        // Only fire if rationale is long enough — DecisionPanel validates internally
-        // We trigger via a custom event picked up by DecisionPanel
         document.dispatchEvent(new CustomEvent("bankops:decision", { detail: "APPROVED" }));
       } else if (e.key === "r" || e.key === "R") {
         document.dispatchEvent(new CustomEvent("bankops:decision", { detail: "REJECTED" }));
@@ -120,7 +109,20 @@ export default function DashboardPage() {
             <h1 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Active Cases
             </h1>
-            {isLoadingCases && <Spinner size="sm" className="text-slate-500" />}
+            <div className="flex items-center gap-2">
+              {isLoadingCases && <Spinner size="sm" className="text-slate-500" />}
+              <button
+                onClick={() => void generateCases()}
+                disabled={isGenerating}
+                className="flex items-center gap-1 rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isGenerating
+                  ? <Spinner size="sm" className="text-white" />
+                  : <Sparkles className="h-3 w-3" />
+                }
+                {isGenerating ? "Generating…" : "Generate"}
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3">

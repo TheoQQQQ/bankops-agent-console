@@ -6,12 +6,6 @@ import type { AgentStatus, AiAnalysis, AuditEntry, CustomerCase, DecisionRequest
 
 const POLL_INTERVAL_MS = 30_000;
 
-/**
- * Central state hook for the BankOps console.
- *
- * Manages active cases (with pagination + polling), selected case,
- * audit trail, AI analysis flow, and operator decision submission.
- */
 export function useCases() {
   const [cases, setCases]               = useState<CustomerCase[]>([]);
   const [totalCases, setTotalCases]     = useState(0);
@@ -23,6 +17,7 @@ export function useCases() {
   const [agentError, setAgentError]     = useState<string | null>(null);
   const [isLoadingCases, setIsLoadingCases] = useState(true);
   const [casesError, setCasesError]         = useState<string | null>(null);
+  const [isGenerating, setIsGenerating]     = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -145,6 +140,30 @@ export function useCases() {
     [selectedCase, analysis, loadCases, currentPage]
   );
 
+  // ----------------------------------------------------------------
+  // AI case generation
+  // ----------------------------------------------------------------
+
+  const generateCases = useCallback(async () => {
+    setIsGenerating(true);
+    try {
+      const res = await fetch("/api/generate-cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+
+      await loadCases(0);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [loadCases]);
+
   return {
     cases,
     totalCases,
@@ -156,9 +175,11 @@ export function useCases() {
     agentError,
     isLoadingCases,
     casesError,
+    isGenerating,
     selectCase,
     runAnalysis,
     submitDecision,
+    generateCases,
     loadPage: loadCases,
   };
 }

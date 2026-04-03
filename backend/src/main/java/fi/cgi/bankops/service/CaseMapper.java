@@ -4,18 +4,39 @@ import fi.cgi.bankops.dto.AuditLogDto;
 import fi.cgi.bankops.dto.CustomerCaseDto;
 import fi.cgi.bankops.model.AuditLog;
 import fi.cgi.bankops.model.CustomerCase;
-import org.mapstruct.Mapper;
-import org.mapstruct.MappingConstants;
+import org.springframework.stereotype.Service;
 
 /**
- * MapStruct mapper – compile-time generated, zero reflection.
- * Field names match exactly between entity and DTO so no explicit
- * {@code @Mapping} annotations are needed here.
+ * Manual mapper replacing MapStruct to avoid annotation-processor
+ * compatibility issues with Java 21 and Lombok.
  */
-@Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
-public interface CaseMapper {
+@Service
+public class CaseMapper {
 
-    CustomerCaseDto toDto(CustomerCase entity);
+    public CustomerCaseDto toDto(CustomerCase e) {
+        return new CustomerCaseDto(
+                e.getId(),
+                e.getCaseRef(),
+                e.getCustomerId(),
+                e.getCustomerName(),
+                e.getCaseType(),
+                e.getStatus(),
+                e.getRiskLevel(),
+                e.getAmount(),
+                e.getDescription(),
+                e.getCreatedAt(),
+                e.getUpdatedAt()
+        );
+    }
 
-    AuditLogDto toAuditDto(AuditLog entity);
+    public AuditLogDto toAuditDto(AuditLog e) {
+        return new AuditLogDto(
+                e.getId(),
+                e.getCaseId(),
+                e.getActor(),
+                e.getAction(),
+                e.getDetail(),
+                e.getCreatedAt()
+        );
+    }
 }

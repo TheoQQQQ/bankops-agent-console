@@ -1,11 +1,5 @@
 server:
   port: 8080
-  # HTTPS: on Railway, TLS is terminated at the load balancer.
-  # For local HTTPS, generate a keystore and uncomment:
-  # ssl:
-  #   key-store: classpath:keystore.p12
-  #   key-store-password: ${SSL_KEYSTORE_PASSWORD}
-  #   key-store-type: PKCS12
 
 spring:
   application:
@@ -37,10 +31,9 @@ bankops:
   cors:
     allowed-origins:
       - "http://localhost:3000"
-
-jwt:
-  secret: ${BANKOPS_JWT_SECRET:bankops-dev-secret-change-in-production-min32}
-  "[expiry-minutes]": 480
+  jwt:
+    secret: ${BANKOPS_JWT_SECRET:bankops-dev-secret-change-in-production-min32}
+    expiry-minutes: 480
 
 logging:
   level:

@@ -1,9 +1,3 @@
-/**
- * Catch-all proxy route: /api/backend/* → Java backend
- *
- * Reads the HttpOnly JWT cookie server-side and attaches it as a
- * Bearer token before forwarding to the Java backend.
- */
 import process from "node:process";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -13,7 +7,6 @@ async function proxy(
   req: NextRequest,
   { params }: { params: { path: string[] } }
 ): Promise<NextResponse> {
-  // Read JWT from cookie header directly (avoids next/headers async issues)
   const cookieHeader = req.headers.get("cookie") ?? "";
   const token = cookieHeader
     .split(";")
@@ -21,9 +14,11 @@ async function proxy(
     .find((c) => c.startsWith("bankops_token="))
     ?.split("=")[1];
 
-  const url     = new URL(req.url);
-  const path    = "/" + params.path.join("/");
+  const url       = new URL(req.url);
+  const path      = "/" + params.path.join("/");
   const targetUrl = `${BACKEND}/api/v1${path}${url.search}`;
+
+  console.log("[proxy] token present:", !!token, "| path:", path);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
