@@ -70,3 +70,5 @@ export type AgentStatus =
   | "analysing"
   | "done"
   | "error";
+
+  export type SortField = "createdAt" | "riskLevel" | "amount";
