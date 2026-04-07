@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -81,14 +82,15 @@ public class CaseController {
     }
 
     @PostMapping("/generate")
+    @ResponseStatus(HttpStatus.CREATED)
     @Operation(
         summary     = "Persist AI-generated cases",
-        description = "Accepts a batch of AI-generated cases from the frontend and inserts them into the database."
+        description = "Accepts a batch of AI-generated cases (max 50) from the frontend and inserts them into the database."
     )
     public ResponseEntity<List<CustomerCaseDto>> generateCases(
             @Valid @RequestBody GenerateCasesRequest request) {
         List<CustomerCaseDto> created = caseGeneratorService.saveBatch(request.cases());
-        return ResponseEntity.ok(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/health")
