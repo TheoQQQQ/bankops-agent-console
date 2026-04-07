@@ -19,6 +19,8 @@ export interface CustomerCase {
   description: string;
   createdAt: string; // ISO-8601
   updatedAt: string;
+  dueAt: string;     // ISO-8601 — createdAt + 48h
+  slaBreached: boolean;
 }
 
 export interface AuditEntry {
@@ -47,6 +49,7 @@ export interface AiAnalysisRequest {
   summary: string;
   recommendation: string;
   confidencePercent: number;
+  reasoning?: string;
 }
 
 export interface DecisionRequest {

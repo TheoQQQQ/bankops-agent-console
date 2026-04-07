@@ -72,6 +72,14 @@ public class CaseController {
         return caseService.applyDecision(id, request);
     }
 
+    @PostMapping("/{id}/note")
+    @Operation(summary = "Add operator note", description = "Appends a free-text note to the case audit trail.")
+    public CustomerCaseDto addNote(
+            @PathVariable Long id,
+            @Valid @RequestBody NoteRequest request) {
+        return caseService.addNote(id, request);
+    }
+
     @PostMapping("/generate")
     @Operation(
         summary     = "Persist AI-generated cases",

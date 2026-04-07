@@ -1,0 +1,9 @@
+package fi.cgi.bankops.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record NoteRequest(
+        @NotBlank @Size(max = 1000) String note,
+        @NotBlank String operator
+) {}

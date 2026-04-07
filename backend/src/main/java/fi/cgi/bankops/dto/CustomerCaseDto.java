@@ -22,5 +22,7 @@ public record CustomerCaseDto(
         BigDecimal amount,
         String description,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        Instant dueAt,
+        boolean slaBreached
 ) {}

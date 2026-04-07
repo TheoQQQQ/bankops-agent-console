@@ -23,5 +23,9 @@ public record AiAnalysisRequest(
         String recommendation,
 
         /** Confidence expressed as a percentage (0–100). */
-        int confidencePercent
+        int confidencePercent,
+
+        /** Full chain-of-thought reasoning from the AI model. Stored in audit trail. */
+        @Size(max = 4000)
+        String reasoning
 ) {}

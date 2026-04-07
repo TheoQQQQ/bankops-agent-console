@@ -12,6 +12,7 @@ import type {
   AuditEntry,
   CustomerCase,
   DecisionRequest,
+  NoteRequest,
 } from "@/types";
 
 const BASE = "/api/backend";
@@ -87,6 +88,15 @@ export const postDecision = (
   body: DecisionRequest
 ): Promise<CustomerCase> =>
   request<CustomerCase>(`/cases/${caseId}/decision`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+export const postNote = (
+  caseId: number,
+  body: NoteRequest
+): Promise<CustomerCase> =>
+  request<CustomerCase>(`/cases/${caseId}/note`, {
     method: "POST",
     body: JSON.stringify(body),
   });

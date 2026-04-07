@@ -41,8 +41,12 @@ public class CaseService {
     private final AuditService           auditService;
     private final CaseMapper             caseMapper;
 
+    // -------------------------------------------------------------------------
+    // Queries
+    // -------------------------------------------------------------------------
+
     @Transactional(readOnly = true)
-    public Page<CustomerCaseDto> getActiveCases(Pageable pageable) {
+    public Page<CustomerCaseDto> getActiveCases(@NonNull Pageable pageable) {
         return caseRepository
                 .findActiveCasesPaginated(CaseStatus.PENDING, CaseStatus.UNDER_REVIEW, pageable)
                 .map(caseMapper::toDto);
@@ -62,8 +66,12 @@ public class CaseService {
                 .toList();
     }
 
+    // -------------------------------------------------------------------------
+    // Commands
+    // -------------------------------------------------------------------------
+
     @Transactional
-    public CustomerCaseDto recordAiAnalysis(@NonNull Long caseId, AiAnalysisRequest request) {
+    public CustomerCaseDto recordAiAnalysis(@NonNull Long caseId, @NonNull AiAnalysisRequest request) {
         var cs = findOrThrow(caseId);
 
         if (cs.getStatus() == CaseStatus.PENDING) {
@@ -79,7 +87,7 @@ public class CaseService {
     }
 
     @Transactional
-    public CustomerCaseDto applyDecision(@NonNull Long caseId, DecisionRequest request) {
+    public CustomerCaseDto applyDecision(@NonNull Long caseId, @NonNull DecisionRequest request) {
         var cs = findOrThrow(caseId);
 
         validateTransition(cs, request.decision());
@@ -90,8 +98,7 @@ public class CaseService {
         auditService.record(caseId, actor, request.decision().name(), detail);
 
         if (isOverride(request)) {
-            String overrideDetail = buildOverrideDetail(request);
-            auditService.record(caseId, actor, "DECISION_OVERRIDE", overrideDetail);
+            auditService.record(caseId, actor, "DECISION_OVERRIDE", buildOverrideDetail(request));
             log.warn("Override on case {}: AI={} Operator={}",
                     cs.getCaseRef(), request.aiRecommendation(), request.decision());
         }
@@ -101,6 +108,20 @@ public class CaseService {
 
         return caseMapper.toDto(caseRepository.save(cs));
     }
+
+    @Transactional
+    public CustomerCaseDto addNote(@NonNull Long caseId, @NonNull NoteRequest request) {
+        var cs = findOrThrow(caseId);
+        String actor  = "OPERATOR:" + sanitise(request.operator());
+        String detail = sanitise(request.note());
+        auditService.record(caseId, actor, "NOTE_ADDED", detail);
+        log.info("Note added to case {} by {}", cs.getCaseRef(), request.operator());
+        return caseMapper.toDto(cs);
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
 
     private CustomerCase findOrThrow(@NonNull Long id) {
         return caseRepository.findById(id)
@@ -130,8 +151,8 @@ public class CaseService {
 
     private static String sanitise(String input) {
         if (input == null) return null;
-        String stripped = input.replaceAll("<[^>]*>", "");
-        return stripped.replaceAll("[\\p{Cntrl}&&[^\t\n\r]]", "");
+        return input.replaceAll("<[^>]*>", "")
+                    .replaceAll("[\\p{Cntrl}&&[^\t\n\r]]", "");
     }
 
     private static String buildOverrideDetail(DecisionRequest r) {
@@ -140,12 +161,15 @@ public class CaseService {
     }
 
     private static String buildAiDetail(AiAnalysisRequest r) {
+        String reasoning = (r.reasoning() != null && !r.reasoning().isBlank())
+                ? "\nReasoning:\n" + r.reasoning()
+                : "";
         return """
                 Risk Assessment: %s
                 Recommendation:  %s
                 Confidence:      %d%%
                 Summary:         %s
                 """.formatted(r.riskAssessment(), r.recommendation(),
-                r.confidencePercent(), r.summary());
+                r.confidencePercent(), r.summary()) + reasoning;
     }
 }
