@@ -17,9 +17,9 @@ export interface CustomerCase {
   riskLevel: RiskLevel;
   amount: number | null;
   description: string;
-  createdAt: string; // ISO-8601
+  createdAt: string;
   updatedAt: string;
-  dueAt: string;     // ISO-8601 — createdAt + 48h
+  dueAt: string;
   slaBreached: boolean;
 }
 
@@ -60,6 +60,11 @@ export interface DecisionRequest {
   aiRecommendation?: string;
 }
 
+export interface NoteRequest {
+  note: string;
+  operator: string;
+}
+
 // ============================================================
 // UI state types
 // ============================================================
@@ -71,4 +76,18 @@ export type AgentStatus =
   | "done"
   | "error";
 
-  export type SortField = "createdAt" | "riskLevel" | "amount";
+export type SortField =
+  | "createdAt"
+  | "riskLevel"
+  | "amount"
+  | "customerName";
+
+export type SortDirection = "asc" | "desc";
+
+export interface CaseFilters {
+  search: string;
+  riskLevel: RiskLevel | "ALL";
+  caseType: CaseType | "ALL";
+  sortField: SortField;
+  sortDirection: SortDirection;
+}
