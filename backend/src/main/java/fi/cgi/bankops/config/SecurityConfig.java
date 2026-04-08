@@ -58,7 +58,8 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/swagger-ui.html"
                 ).permitAll()
-                .requestMatchers("/h2-console/**").permitAll()
+                // H2 console requires authentication — never open in production
+                .requestMatchers("/h2-console/**").authenticated()
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())

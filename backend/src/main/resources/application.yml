@@ -17,7 +17,7 @@ spring:
     open-in-view: false
   h2:
     console:
-      enabled: ${H2_CONSOLE_ENABLED:true}
+      enabled: ${H2_CONSOLE_ENABLED:false}
       path: /h2-console
   flyway:
     enabled: true
@@ -29,11 +29,11 @@ bankops:
       - "http://localhost:3000"
       - ${FRONTEND_URL:http://localhost:3000}
   jwt:
-    secret: ${BANKOPS_JWT_SECRET:bankops-dev-secret-change-in-production-min32}
+    secret: ${BANKOPS_JWT_SECRET}
     expiry-minutes: 480
 
 logging:
   level:
-    fi.cgi.bankops: DEBUG
+    fi.cgi.bankops: INFO
     org.springframework.security: INFO
     org.springframework.web: INFO
