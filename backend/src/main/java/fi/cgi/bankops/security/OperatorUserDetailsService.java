@@ -17,8 +17,8 @@ import java.util.Map;
  * In production, replace with an LDAP or identity-provider backed implementation.
  *
  * Demo credentials:
- *   demo.operator  / BankOps2024!
- *   senior.analyst / Analyst2024!
+ *   demo.operator  / BankOps2026!
+ *   senior.analyst / Analyst2026!
  */
 @Service
 public class OperatorUserDetailsService implements UserDetailsService {
@@ -27,8 +27,8 @@ public class OperatorUserDetailsService implements UserDetailsService {
 
     public OperatorUserDetailsService(@Lazy PasswordEncoder passwordEncoder) {
         this.userStore = Map.of(
-                "demo.operator",  passwordEncoder.encode("BankOps2024!"),
-                "senior.analyst", passwordEncoder.encode("Analyst2024!")
+                "demo.operator",  passwordEncoder.encode("BankOps2026!"),
+                "senior.analyst", passwordEncoder.encode("Analyst2026!")
         );
     }
 

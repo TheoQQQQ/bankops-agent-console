@@ -147,7 +147,7 @@ export default function LoginPage() {
         <div className="mt-6 rounded-lg bg-white/5 p-3 text-center">
           <p className="text-xs text-slate-500">Demo credentials</p>
           <p className="mt-1 font-mono text-xs text-slate-400">
-            demo.operator / BankOps2024!
+            demo.operator / BankOps2026!
           </p>
         </div>
       </div>

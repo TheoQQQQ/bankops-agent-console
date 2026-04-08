@@ -24,7 +24,7 @@ class AuthControllerIntegrationTest {
     @Test
     @DisplayName("POST /login with valid credentials returns 200 and a JWT")
     void loginWithValidCredentials() throws Exception {
-        var request = new LoginRequest("demo.operator", "BankOps2024!");
+        var request = new LoginRequest("demo.operator", "BankOps2026!");
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -49,7 +49,7 @@ class AuthControllerIntegrationTest {
     @Test
     @DisplayName("POST /login with unknown username returns 401")
     void loginWithUnknownUsername() throws Exception {
-        var request = new LoginRequest("hacker.smith", "BankOps2024!");
+        var request = new LoginRequest("hacker.smith", "BankOps2026!");
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
