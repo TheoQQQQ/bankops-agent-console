@@ -50,6 +50,7 @@ export interface AiAnalysisRequest {
   recommendation: string;
   confidencePercent: number;
   reasoning?: string;
+  resilienceMode?: boolean;
 }
 
 export interface DecisionRequest {
