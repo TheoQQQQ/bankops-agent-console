@@ -11,18 +11,50 @@ BankOps Agent Console is a full-stack application that simulates how an AI agent
 
 The system embodies the "human-in-the-loop" principle central to responsible AI in financial services: **the AI analyses and recommends; the human decides**.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│               BankOps Agent Console                     │
-│                                                         │
-│  ┌────────────┐  REST/JSON  ┌───────────────────────┐   │
-│  │  Next.js   │◄───────────►│  Spring Boot (Java)   │   │
-│  │  Frontend  │             │  "Legacy" Banking API  │   │
-│  │            │             │  + Audit Log (H2)     │   │
-│  │  AI Route  │◄── Groq ───►│                       │   │
-│  │  Handler   │   (Llama)   │                       │   │
-│  └────────────┘             └───────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+---
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph Browser["Browser"]
+        UI["Case Review UI\n(Next.js 14 App Router)"]
+        MW["Next.js Middleware\nRoute Guard"]
+    end
+
+    subgraph Frontend["Frontend Server (Next.js)"]
+        ANALYSE["POST /api/analyse\nAI Route Handler\n(GROQ_API_KEY server-side only)"]
+        PROXY["GET|POST /api/backend/[...path]\nBackend Proxy"]
+        GEN["POST /api/generate-cases\nSeed Route"]
+    end
+
+    subgraph Backend["Backend (Spring Boot 3 · Java 21)"]
+        CTRL["CaseController\nREST API"]
+        SVC["CaseService\nBusiness Logic"]
+        AUDIT["AuditService\nAppend-only Log\n(REQUIRES_NEW)"]
+        MAPPER["CaseMapper\nMapStruct"]
+    end
+
+    subgraph Data["Data Layer"]
+        DB[("H2 In-Memory DB\nFlyway Migrations")]
+    end
+
+    subgraph AI["External AI"]
+        GROQ["Groq API\nLlama 3.3-70b-versatile\n(retry + timeout + fallback)"]
+    end
+
+    UI --> MW --> ANALYSE
+    UI --> PROXY
+    ANALYSE -->|"Structured prompt\ntemp=0.2, json_object"| GROQ
+    GROQ -->|"AiAnalysis JSON\nor fallback on failure"| ANALYSE
+    ANALYSE -->|"POST audit record"| PROXY
+    PROXY --> CTRL
+    GEN --> CTRL
+    CTRL --> SVC
+    SVC --> MAPPER
+    SVC --> AUDIT
+    SVC --> DB
+    AUDIT --> DB
 ```
 
 ---
@@ -34,11 +66,13 @@ The system embodies the "human-in-the-loop" principle central to responsible AI 
 | Java backend acts as "legacy surface" | Demonstrates ability to work with existing banking systems rather than rewriting them |
 | AI orchestration lives server-side (Next.js Route Handler) | API key never reaches the browser; all LLM calls are proxied |
 | Groq + Llama 3.3-70b | Free tier, OpenAI-compatible, fast inference suitable for demos |
+| AI resilience: retry + timeout + fallback | If Groq is unavailable, the system degrades gracefully to manual review mode rather than crashing |
 | Flyway schema migrations | Production-grade database lifecycle management |
 | MapStruct for DTO mapping | Compile-time generated, zero reflection – performance and safety |
 | `REQUIRES_NEW` on audit writes | Audit entries persist even if the main transaction rolls back |
 | RFC 7807 Problem Detail errors | Structured, machine-readable error responses |
 | Polling every 30 s | Simple real-time feel without WebSocket complexity for a demo |
+| CI/CD via GitHub Actions | Every push runs lint, type-check, tests, and build for both services |
 
 ---
 
@@ -56,6 +90,9 @@ The system embodies the "human-in-the-loop" principle central to responsible AI 
 - **Tailwind CSS** – utility-first dark-mode UI
 - **Groq SDK** – AI inference (Llama 3.3-70b-versatile, free tier)
 - **Lucide React** – icon set
+
+### Infrastructure
+- **GitHub Actions** – CI pipeline (lint → type-check → test → build on every push)
 
 ---
 
