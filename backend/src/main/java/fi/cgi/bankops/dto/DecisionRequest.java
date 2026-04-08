@@ -23,7 +23,7 @@ public record DecisionRequest(
         @Size(max = 60)
         String operator,
 
-        @Size(max = 2000)
+        @Size(min = 10, max = 2000)
         String rationale,
 
         /**

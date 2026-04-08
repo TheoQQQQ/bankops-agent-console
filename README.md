@@ -36,7 +36,7 @@ graph TB
     end
 
     subgraph Data["Data Layer"]
-        DB[("H2 In-Memory DB\nFlyway Migrations")]
+        DB[("H2 In-Memory DB + Postgres DB\nFlyway Migrations")]
     end
 
     subgraph AI["External AI"]

@@ -18,8 +18,6 @@ async function proxy(
   const path      = "/" + params.path.join("/");
   const targetUrl = `${BACKEND}/api/v1${path}${url.search}`;
 
-  console.log("[proxy] token present:", !!token, "| path:", path);
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
