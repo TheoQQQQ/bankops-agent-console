@@ -73,6 +73,7 @@ graph TB
 | RFC 7807 Problem Detail errors | Structured, machine-readable error responses |
 | Polling every 30 s | Simple real-time feel without WebSocket complexity for a demo |
 | CI/CD via GitHub Actions | Every push runs lint, type-check, tests, and build for both services |
+| PostgreSQL on Railway | Production uses PostgreSQL; H2 is used locally for zero-config dev setup |
 
 ---
 
@@ -80,7 +81,8 @@ graph TB
 
 ### Backend (Java 21 + Spring Boot 3)
 - **Spring Boot 3.2** – REST API, validation, JPA
-- **H2** – in-memory database (simulates legacy data store)
+- **H2** – in-memory database (local development)
+- **PostgreSQL** – production database (Railway)
 - **Flyway** – schema versioning and seed data
 - **Lombok** – boilerplate reduction
 - **MapStruct** – compile-time DTO mapping
