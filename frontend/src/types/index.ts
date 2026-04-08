@@ -42,6 +42,7 @@ export interface AiAnalysis {
   recommendation: "APPROVE" | "REJECT" | "ESCALATE" | "NEEDS_MORE_INFO";
   confidencePercent: number;
   reasoning: string;
+  resilienceMode?: boolean;
 }
 
 export interface AiAnalysisRequest {
