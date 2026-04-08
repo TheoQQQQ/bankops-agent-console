@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import type { AgentStatus, AiAnalysis, CustomerCase } from "@/types";
 import { riskBadgeBg } from "@/lib/utils";
-import { Bot, CheckCircle2, XCircle, AlertCircle, HelpCircle } from "lucide-react";
+import { Bot, CheckCircle2, XCircle, AlertCircle, HelpCircle, WifiOff } from "lucide-react";
 
 interface AiPanelProps {
   status: AgentStatus;
@@ -21,10 +21,6 @@ const recommendationConfig = {
   NEEDS_MORE_INFO:{ icon: HelpCircle,   colour: "text-amber-400",   label: "Needs More Info" },
 } as const;
 
-/**
- * AI Agent panel – shows the current analysis state and results.
- * The human operator sees this before deciding.
- */
 export function AiPanel({ status, analysis, error, onAnalyse, selectedCase }: AiPanelProps) {
   const isIdle     = status === "idle";
   const isLoading  = status === "fetching" || status === "analysing";
@@ -79,6 +75,17 @@ export function AiPanel({ status, analysis, error, onAnalyse, selectedCase }: Ai
       {/* Done state */}
       {isDone && analysis && rec && (
         <div className="flex flex-col gap-4">
+
+          {/* Resilience mode warning banner */}
+          {analysis.resilienceMode && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-700/50 bg-amber-900/20 p-3">
+              <WifiOff className="h-4 w-4 flex-shrink-0 text-amber-400" aria-hidden />
+              <p className="text-xs text-amber-300">
+                AI service unavailable — fallback mode. Proceed with manual review.
+              </p>
+            </div>
+          )}
+
           {/* Recommendation header */}
           <div className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
             <rec.icon className={`h-5 w-5 flex-shrink-0 ${rec.colour}`} aria-hidden />

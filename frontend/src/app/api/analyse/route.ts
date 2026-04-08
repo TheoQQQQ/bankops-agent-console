@@ -14,6 +14,9 @@ import Groq from "groq-sdk";
 import { postAiAnalysis } from "@/lib/serverApi";
 import type { CustomerCase, AiAnalysis } from "@/types";
 
+const MAX_RETRIES = 2;
+const TIMEOUT_MS = 12_000;
+
 const SYSTEM_PROMPT = `You are a senior financial crime analyst AI assistant at a European bank.
 Your role is to review customer cases flagged for human attention and provide a concise, 
 structured risk assessment to assist the human operator.
@@ -91,31 +94,55 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // 3. Call Groq
-  let analysis: AiAnalysis;
-  try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user",   content: buildUserPrompt(customerCase) },
-      ],
-      temperature: 0.2,
-      max_tokens: 1024,
-      response_format: { type: "json_object" },
-    });
+  // 3. Call Groq — with timeout + retry
+  let analysis!: AiAnalysis;
+  let lastError: string = "Unknown error";
+  let succeeded = false;
 
-    const raw = completion.choices[0]?.message?.content;
-    if (!raw) throw new Error("Groq returned an empty response");
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    analysis = JSON.parse(raw) as AiAnalysis;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[AI Agent] Groq call failed:", message);
-    return NextResponse.json(
-      { error: `AI call failed: ${message}` },
-      { status: 502 }
-    );
+      const completion = await groq.chat.completions.create(
+        {
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user",   content: buildUserPrompt(customerCase) },
+          ],
+          temperature: 0.2,
+          max_tokens: 1024,
+          response_format: { type: "json_object" },
+        },
+        { signal: controller.signal }
+      );
+
+      clearTimeout(timeout);
+
+      const raw = completion.choices[0]?.message?.content;
+      if (!raw) throw new Error("Groq returned an empty response");
+
+      analysis = JSON.parse(raw) as AiAnalysis;
+      succeeded = true;
+      break;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.warn(`[AI Agent] Attempt ${attempt}/${MAX_RETRIES} failed: ${lastError}`);
+    }
+  }
+
+  if (!succeeded) {
+    console.error("[AI Agent] All retries exhausted, returning fallback response");
+    const fallback: AiAnalysis = {
+      riskAssessment:    "HIGH",
+      summary:           "AI service temporarily unavailable. Manual review required before proceeding.",
+      recommendation:    "ESCALATE",
+      confidencePercent: 0,
+      reasoning:         "Automated analysis could not be completed. Please review the case manually.",
+      resilienceMode:    true,
+    };
+    return NextResponse.json(fallback);
   }
 
   // 4. Validate AI output shape
@@ -128,7 +155,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // 5. Persist to Java backend audit log — includes full reasoning trail
+  // 5. Persist to Java backend audit log
   try {
     await postAiAnalysis(customerCase.id, {
       riskAssessment:    analysis.riskAssessment,
